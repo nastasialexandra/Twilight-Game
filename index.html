@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Twilight night</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Landing -->
+  <section class="hero" id="top">
+    <div class="hero-backdrop" aria-hidden="true"></div>
+    <div class="hero-image" role="img" aria-label="Misty pine forest with the Twilight title"></div>
+    <div class="hero-fade" aria-hidden="true"></div>
+    <a class="enter" href="#crossword">
+      <span>Enter the forest</span>
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+  </section>
+
+  <!-- Crossword -->
+  <section class="crossword" id="crossword">
+    <div class="intro">
+      <h1>The Forks <em>crossword</em></h1>
+      <p class="lede">Twenty-two clues, from the meadow to the TikTok comeback. Tap a square and type. Tap it again to switch between across and down.</p>
+    </div>
+
+    <div class="layout">
+      <div class="board">
+        <p class="current" id="current" aria-live="polite"></p>
+        <div class="grid" id="grid" role="grid" aria-label="Crossword grid"></div>
+        <div class="tools">
+          <button type="button" id="check">Check puzzle</button>
+          <button type="button" id="revealWord">Reveal word</button>
+          <button type="button" id="clear">Clear puzzle</button>
+          <button type="button" id="print">Print blank copy</button>
+        </div>
+        <p class="status" id="status" aria-live="polite"></p>
+      </div>
+
+      <div class="clues">
+        <section><h2>Across</h2><ol id="across"></ol></section>
+        <section><h2>Down</h2><ol id="down"></ol></section>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- Memory match -->
+  <section class="memory" id="memory">
+    <div class="intro">
+      <h1>Memory <em>match</em></h1>
+      <p class="lede">Find all eight pairs from Forks. Flip two cards at a time; if they match, they stay face up.</p>
+    </div>
+    <div class="memory-stats" aria-live="polite">
+      <span>Moves <b id="mmMoves">0</b></span>
+      <span>Pairs <b id="mmPairs">0</b>/8</span>
+      <span>Time <b id="mmTime">0:00</b></span>
+      <span>Best <b id="mmBest">–</b></span>
+    </div>
+    <div class="memory-board" id="memoryBoard"></div>
+    <p class="status" id="mmStatus" aria-live="polite"></p>
+    <div class="tools"><button type="button" id="mmRestart">Shuffle and restart</button></div>
+  </section>
+
+  <!-- Quote & meme quiz -->
+  <section class="quiz" id="quiz">
+    <div class="intro">
+      <h1>Quote &amp; meme <em>quiz</em></h1>
+      <p class="lede">Twelve lines and internet-famous moments. Read each one out loud, let the room argue, then pick who it belongs to.</p>
+    </div>
+    <div class="quiz-card" id="quizCard" aria-live="polite"></div>
+    <a class="back" href="#top">Back to the forest</a>
+  </section>
+
+  <script src="script.js"></script>
+</body>
+</html>vv
