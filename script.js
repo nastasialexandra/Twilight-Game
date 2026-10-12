@@ -1,3 +1,23 @@
+/* ---------- Game clock ----------
+   Counts only while its game is on screen and the tab is open,
+   stops for good when the game is finished, and restarts with a new game.
+   So walking away, resting between games or checking the leaderboard is free. */
+function Stopwatch(section) {
+  let total = 0, since = 0, running = false, onScreen = false;
+  const live = () => running && onScreen && !document.hidden;
+  const bank = () => { if (since) { total += Date.now() - since; since = 0; } };
+  const sync = () => { if (live()) { if (!since) since = Date.now(); } else bank(); };
+  new IntersectionObserver(([e]) => { onScreen = e.isIntersecting; sync(); }, { threshold: 0.25 }).observe(section);
+  document.addEventListener('visibilitychange', sync);
+  return {
+    start() { if (!running) { running = true; sync(); } },
+    stop() { bank(); running = false; },
+    reset() { total = 0; since = 0; running = false; },
+    seconds() { return (total + (since ? Date.now() - since : 0)) / 1000; },
+    get running() { return running; }
+  };
+}
+
 (() => {
 // Puzzle data: each entry is an answer, its start square, direction (A/D), number and clue
 const P = {
@@ -247,9 +267,14 @@ function refresh(){
   else cu.innerHTML='<b>Clue</b><span>Tap any white square to see its clue.</span>';
   const all=Object.keys(inputs).every(k=>{const[r,c]=k.split(',');return inputs[k].value===sol[r][c]});
   const st=document.getElementById('status');
-  if(all){st.textContent='Solved. Somewhere in Forks, Edward is sparkling with pride.';st.className='status win'}
+  if(all){st.textContent='Solved. Somewhere in Forks, Edward is sparkling with pride.';st.className='status win';
+    if(!xwSent){xwSent=true;xwClock.stop();const secs=Math.round(xwClock.seconds());const solved=P.entries.length-xwRevealed.size;
+      const pts=Math.max(0,solved*100+Math.max(0,900-secs));
+      document.dispatchEvent(new CustomEvent('forks:score',{detail:{game:'crossword',title:'Crossword solved',points:pts,seconds:secs,rows:[['Words solved yourself',solved+' of '+P.entries.length],['Words revealed',String(xwRevealed.size)],['Speed bonus','+'+Math.max(0,900-secs)],['Time',Math.floor(secs/60)+':'+String(secs%60).padStart(2,'0')]]}}));}}
   else if(st.classList.contains('win')){st.textContent='';st.className='status'}
 }
+const xwClock=Stopwatch(document.getElementById('crossword'));let xwSent=false;const xwRevealed=new Set();
+document.getElementById('grid').addEventListener('focusin',()=>{if(!xwSent)xwClock.start()});
 function save(){const o={};for(const k in inputs)if(inputs[k].value)o[k]=inputs[k].value;try{localStorage.setItem('twilight-xw',JSON.stringify(o))}catch(e){}}
 document.getElementById('check').onclick=()=>{let wrong=0,empty=0;
   for(const k in inputs){const[r,c]=k.split(',');const v=inputs[k].value;const d=inputs[k].parentNode;
@@ -259,9 +284,9 @@ document.getElementById('check').onclick=()=>{let wrong=0,empty=0;
   st.className='status';st.textContent=wrong?`${wrong} square${wrong>1?'s':''} marked in red. ${empty?empty+' still empty.':''}`:`Everything so far is right. ${empty} square${empty>1?'s':''} to go.`;};
 document.getElementById('revealWord').onclick=()=>{const w=word();const st=document.getElementById('status');
   if(!w){st.className='status';st.textContent='Pick a square first, then reveal its word.';return}
+  if(w.cells.some(([r,c])=>inputs[r+','+c].value!==sol[r][c]))xwRevealed.add(w.id);
   w.cells.forEach(([r,c])=>{const i=inputs[r+','+c];if(i.value!==sol[r][c]){i.value=sol[r][c];i.parentNode.classList.add('revealed')}i.parentNode.classList.remove('wrong')});save();refresh();};
-document.getElementById('clear').onclick=()=>{if(!confirm('Clear every square?'))return;for(const k in inputs){inputs[k].value='';inputs[k].parentNode.classList.remove('wrong','revealed')}save();document.getElementById('status').textContent='';refresh();};
-document.getElementById('print').onclick=()=>window.print();
+document.getElementById('clear').onclick=()=>{if(!confirm('Clear every square?'))return;for(const k in inputs){inputs[k].value='';inputs[k].parentNode.classList.remove('wrong','revealed')}save();xwClock.reset();xwSent=false;xwRevealed.clear();document.getElementById('status').textContent='';refresh();};
 refresh();
 })();
 
@@ -283,7 +308,8 @@ refresh();
   const board = document.getElementById('memoryBoard');
   if (!board) return;
   const $ = id => document.getElementById(id);
-  let first = null, lock = false, moves = 0, pairs = 0, start = 0, timer = null;
+  let first = null, lock = false, moves = 0, pairs = 0, timer = null;
+  const clock = Stopwatch(document.getElementById('memory'));
 
   const fmt = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
   const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -291,7 +317,7 @@ refresh();
   function showBest() { const b = loadBest(); $('mmBest').textContent = b ? `${b.moves} moves` : '–'; }
 
   function deal() {
-    clearInterval(timer); timer = null;
+    clearInterval(timer); timer = null; clock.reset();
     first = null; lock = false; moves = 0; pairs = 0;
     $('mmMoves').textContent = 0; $('mmPairs').textContent = 0; $('mmTime').textContent = '0:00';
     $('mmStatus').textContent = ''; $('mmStatus').className = 'status';
@@ -312,8 +338,8 @@ refresh();
   function flip(card) {
     if (lock || card === first || card.classList.contains('matched')) return;
     if (!timer) {
-      start = Date.now();
-      timer = setInterval(() => { $('mmTime').textContent = fmt(Math.floor((Date.now() - start) / 1000)); }, 500);
+      clock.start();
+      timer = setInterval(() => { $('mmTime').textContent = fmt(Math.floor(clock.seconds())); }, 500);
     }
     card.classList.add('flipped');
     card.setAttribute('aria-label', ICONS[card.dataset.key].name);
@@ -336,8 +362,9 @@ refresh();
   }
 
   function win() {
-    clearInterval(timer); timer = null;
-    const secs = Math.floor((Date.now() - start) / 1000);
+    clearInterval(timer); timer = null; clock.stop();
+    const secs = Math.floor(clock.seconds());
+    $('mmTime').textContent = fmt(secs);
     const best = loadBest();
     let msg = `All eight pairs in ${moves} moves and ${fmt(secs)}.`;
     if (!best || moves < best.moves) {
@@ -346,6 +373,11 @@ refresh();
     }
     $('mmStatus').textContent = msg; $('mmStatus').className = 'status win';
     showBest();
+    // Points: start at 1,000, lose 25 per extra move (8 is perfect) and 3 per second
+    const pts = Math.max(100, 1000 - Math.max(0, moves - 8) * 25 - secs * 3);
+    document.dispatchEvent(new CustomEvent('forks:score', { detail: {
+      game: 'memory', title: 'All pairs found', points: pts, seconds: secs,
+      rows: [['Moves', String(moves)], ['Time', fmt(secs)]] } }));
   }
 
   $('mmRestart').addEventListener('click', deal);
@@ -380,15 +412,16 @@ refresh();
   const card = document.getElementById('quizCard');
   if (!card) return;
   const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-  let order = [], i = 0, score = 0;
+  let order = [], i = 0, score = 0, points = 0, bonus = 0, qStart = 0;
+  const clock = Stopwatch(document.getElementById('quiz')); // only runs while the quiz is on screen
 
-  function start() { order = shuffle(QUESTIONS); i = 0; score = 0; show(); }
+  function start() { order = shuffle(QUESTIONS); i = 0; score = 0; points = 0; bonus = 0; clock.reset(); clock.start(); show(); }
 
   function show() {
     const q = order[i];
     const options = shuffle([q.answer, ...shuffle(CAST.filter(c => c !== q.answer)).slice(0, 3)]);
     card.innerHTML = `
-      <div class="qz-meta"><span>Question ${i + 1} of ${order.length}</span><span>Score ${score}</span></div>
+      <div class="qz-meta"><span>Question ${i + 1} of ${order.length}</span><span>${points} points</span></div>
       <div class="qz-bar"><span style="width:${(i / order.length) * 100}%"></span></div>
       <p class="qz-kind">${q.kind}</p>
       <p class="qz-prompt">${q.prompt}</p>
@@ -396,6 +429,7 @@ refresh();
       <div class="qz-options">${options.map(o => `<button type="button" class="qz-option">${o}</button>`).join('')}</div>
       <div class="qz-slot"></div>`;
     card.querySelectorAll('.qz-option').forEach(b => b.addEventListener('click', () => answer(b, q)));
+    qStart = clock.seconds();
   }
 
   function answer(btn, q) {
@@ -410,10 +444,16 @@ refresh();
     const misses = card.querySelectorAll('.qz-option.wrong').length;
     card.querySelectorAll('.qz-option').forEach(b => { b.disabled = true; });
     btn.classList.add('right');
-    if (misses === 0) score++; // only first-try answers score a point
-    card.querySelector('.qz-meta span:last-child').textContent = `Score ${score}`;
+    // Points: 100 for a first try plus up to 50 for answering within 15 seconds, 40 for a second try
+    const took = clock.seconds() - qStart;
+    if (misses === 0) {
+      score++;
+      const b = Math.round(50 * Math.max(0, 1 - took / 15));
+      bonus += b; points += 100 + b;
+    } else if (misses === 1) points += 40;
+    card.querySelector('.qz-meta span:last-child').textContent = `${points} points`;
 
-    const verdict = misses === 0 ? 'Correct.' : `Got it on try ${misses + 1}. No point this time.`;
+    const verdict = misses === 0 ? 'Correct.' : misses === 1 ? 'Got it on try 2. A few points.' : `Got it on try ${misses + 1}. No points this time.`;
     card.querySelector('.qz-slot').innerHTML = `
       <div class="qz-reveal">
         <p><b>${verdict}</b> <span class="qz-film">${q.film}</span></p>
@@ -436,25 +476,200 @@ refresh();
       <p class="qz-rank">${rank}</p>
       <button type="button" class="qz-restart">Play again</button>`;
     card.querySelector('.qz-restart').addEventListener('click', start);
+    clock.stop();
+    const secs = Math.round(clock.seconds());
+    document.dispatchEvent(new CustomEvent('forks:score', { detail: {
+      game: 'quiz', title: 'Quiz done', points, seconds: secs,
+      rows: [['Correct first try', `${score} of ${order.length}`], ['Speed bonus', `+${bonus}`],
+             ['Time', `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`]] } }));
   }
 
   start();
 })();
 
+/* ---------- Pointing finger: "tap the crossword" hint ---------- */
+(() => {
+  const CYCLE_MS = 4500; // one glide + hover + tap; keep equal to the 4.5s in style.css
+
+  const grid = document.getElementById('grid');
+  if (!grid) return;
+  const cells = [...grid.children];
+  const cols = getComputedStyle(grid).gridTemplateColumns.split(' ').length;
+  const rows = Math.ceil(cells.length / cols);
+  // Squares with a clue number are where a word starts: the finger visits a few of them
+  const stops = cells.filter(c => c.querySelector('.n')).slice(0, 6).map(c => {
+    const i = cells.indexOf(c);
+    return { cell: c, left: `${((i % cols) + 0.5) / cols * 100}%`, top: `${(Math.floor(i / cols) + 0.5) / rows * 100}%` };
+  });
+  if (!stops.length) return;
+
+  // Glossy white hand with red claws and sparkles, drawn here so it looks the same on every device
+  const HAND = `
+      <svg aria-hidden="true" viewBox="-10 -12 56 66">
+      <defs>
+      <linearGradient id="handFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".6" stop-color="#f1f5f4"/>
+      <stop offset="1" stop-color="#cdd9d6"/>
+      </linearGradient>
+      <linearGradient id="nailFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff4a5c"/>
+      <stop offset=".5" stop-color="#c8102e"/>
+      <stop offset="1" stop-color="#6e0414"/>
+      </linearGradient>
+      </defs>
+      <path d="M9.4 4.6 A3.6 3.6 0 0 1 16.6 4.6 V19 A2.7 2.7 0 0 1 22 19 V20.5 A3 3 0 0 1 28 20.5 V23 A2.5 2.5 0 0 1 33 23 V33 C33 39 30.5 43 26.5 44.5 V48 H14 V44.5 C10.5 42.5 7.5 39 5.5 34 L2.6 27.6 A2.7 2.7 0 0 1 7.3 25 L9.4 29.5 Z"
+      fill="url(#handFill)" stroke="#1b2e2b" stroke-width="1.7" stroke-linejoin="round"/>
+      <path d="M16.6 19 V25.5 M22 20.5 V26 M28 23 V27.5" fill="none" stroke="#1b2e2b" stroke-width="1.4" stroke-linecap="round"/>
+      <path d="M14 44.5 H26.5" fill="none" stroke="#1b2e2b" stroke-width="1.4"/>
+      <path d="M11.8 5.5 V24" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M10.1 7.2 C10 3 11.4 -2.5 13 -7.5 C14.6 -2.5 16 3 15.9 7.2 C14.1 8.3 11.9 8.3 10.1 7.2 Z" fill="url(#nailFill)" stroke="#1b2e2b" stroke-width="1.3" stroke-linejoin="round"/>
+      <path d="M11.9 5.5 C11.9 2.5 12.4 -0.5 13.1 -3.2" fill="none" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity=".85"/>
+      <g transform="translate(5.1 27.2) rotate(-26) scale(.72) translate(-13 -6)">
+      <path d="M10.1 7.2 C10 3 11.4 -2.5 13 -7.5 C14.6 -2.5 16 3 15.9 7.2 C14.1 8.3 11.9 8.3 10.1 7.2 Z" fill="url(#nailFill)" stroke="#1b2e2b" stroke-width="1.3" stroke-linejoin="round"/>
+      <path d="M11.9 5.5 C11.9 2.5 12.4 -0.5 13.1 -3.2" fill="none" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity=".85"/>
+      </g>
+      <g class="sparkles" stroke="#2a4441" stroke-width=".8" stroke-linejoin="round"><path class="sp sp1" d="M24 -8.5 C24.99 -3.99 24.99 -3.99 29.5 -3 C24.99 -2.01 24.99 -2.01 24 2.5 C23.01 -2.01 23.01 -2.01 18.5 -3 C23.01 -3.99 23.01 -3.99 24 -8.5 Z" fill="#fff" opacity="1"/><path class="sp sp2" d="M2 -9.6 C2.648 -6.648 2.648 -6.648 5.6 -6 C2.648 -5.352 2.648 -5.352 2 -2.4 C1.3519999999999999 -5.352 1.3519999999999999 -5.352 -1.6 -6 C1.3519999999999999 -6.648 1.3519999999999999 -6.648 2 -9.6 Z" fill="#fff" opacity="0.9"/><path class="sp sp3" d="M31 6 C31.54 8.46 31.54 8.46 34 9 C31.54 9.54 31.54 9.54 31 12 C30.46 9.54 30.46 9.54 28 9 C30.46 8.46 30.46 8.46 31 6 Z" fill="#fff" opacity="0.85"/><path class="sp sp4" d="M-4 8.6 C-3.568 10.568 -3.568 10.568 -1.6 11 C-3.568 11.432 -3.568 11.432 -4 13.4 C-4.432 11.432 -4.432 11.432 -6.4 11 C-4.432 10.568 -4.432 10.568 -4 8.6 Z" fill="#fff" opacity="0.75"/><circle class="sp sp5" cx="18" cy="-9" r="1" fill="#fff" opacity=".8"/><circle class="sp sp6" cx="35" cy="1" r=".9" fill="#fff" opacity=".7"/></g>
+      </svg>`;
+
+  const hint = document.createElement('div');
+  hint.className = 'tap-hint';
+  hint.setAttribute('aria-hidden', 'true');
+  hint.innerHTML = `<span class="tap-ring"></span><span class="tap-hand">${HAND}</span>`;
+  let n = 0;
+  // Move to the next word start, skipping any square that is part of the word being solved
+  const busy = cell => cell.classList.contains('inword') || cell.classList.contains('focus');
+  const go = () => {
+    for (let tries = 0; tries < stops.length; tries++) {
+      const s = stops[n % stops.length]; n++;
+      if (!busy(s.cell)) { hint.style.left = s.left; hint.style.top = s.top; return; }
+    }
+  };
+  go();
+  grid.appendChild(hint);
+  let timer = setInterval(go, CYCLE_MS);
+
+  // Hovering the mouse over the square the finger is on makes it drift off to the next one
+  grid.addEventListener('mouseover', e => {
+    const current = stops[(n - 1) % stops.length].cell;
+    if (current.contains(e.target)) { clearInterval(timer); go(); timer = setInterval(go, CYCLE_MS); }
+  });
+
+  // Gone for good the moment someone taps or clicks a square
+  // Clicking or tapping a square never hides the finger: it just floats away from that word
+  grid.addEventListener('focusin', () => {
+    setTimeout(() => {
+      const current = stops[(n - 1 + stops.length) % stops.length].cell;
+      if (busy(current)) { clearInterval(timer); go(); timer = setInterval(go, CYCLE_MS); }
+    }, 0);
+  });
+})();
+
+/* ---------- Floating finger on the memory cards and the quiz answers ---------- */
+(() => {
+  const CYCLE_MS = 4500; // same rhythm as the crossword finger and the 4.5s in style.css
+  const source = document.querySelector('.tap-hand svg');
+  if (!source) return;
+  let uid = 0;
+
+  // Copy the crossword's clawed hand, giving its colour gradients unique names
+  function handCopy() {
+    uid++;
+    return source.outerHTML
+      .replace(/id="(handFill|nailFill)"/g, (m, id) => `id="${id}${uid}"`)
+      .replace(/url\(#(handFill|nailFill)\)/g, (m, id) => `url(#${id}${uid})`);
+  }
+
+  // container: where the finger lives; targets(): what it may point at right now
+  function addFinger(container, targets) {
+    const hint = document.createElement('div');
+    hint.className = 'tap-hint';
+    hint.setAttribute('aria-hidden', 'true');
+    hint.innerHTML = `<span class="tap-ring"></span><span class="tap-hand">${handCopy()}</span>`;
+    container.appendChild(hint);
+    let current = null, n = 0, timer = null;
+
+    function go(avoid) {
+      const list = targets().filter(el => el !== avoid && el !== current);
+      const pool = list.length ? list : targets().filter(el => el !== avoid);
+      if (!pool.length) { if (!hint.classList.contains('gone')) hint.classList.add('gone'); current = null; return; }
+      if (hint.classList.contains('gone')) hint.classList.remove('gone');
+      current = pool[n++ % pool.length];
+      const box = container.getBoundingClientRect(), r = current.getBoundingClientRect();
+      hint.style.left = `${r.left - box.left + r.width / 2}px`;
+      hint.style.top = `${r.top - box.top + r.height / 2}px`;
+    }
+    function restart(avoid) { clearInterval(timer); go(avoid); timer = setInterval(go, CYCLE_MS); }
+
+    // Hovering or clicking where the finger is makes it float off somewhere else
+    container.addEventListener('mouseover', e => { if (current && current.contains(e.target)) restart(current); });
+    container.addEventListener('click', e => {
+      const hit = targets().find(el => el.contains(e.target)) || e.target.closest('button');
+      setTimeout(() => restart(hit), 0);
+    });
+    // New question, new deal or a card flipping: pick a fresh spot.
+    // Changes to the finger itself are ignored, and checks are bundled into one per frame,
+    // otherwise the finger hiding itself would trigger itself again forever and freeze the page.
+    let queued = false;
+    new MutationObserver(records => {
+      if (records.every(r => hint.contains(r.target))) return;
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => {
+        queued = false;
+        const list = targets();
+        if (!current || !list.includes(current)) {
+          if (!list.length && !current) return; // nothing to point at and already hidden
+          restart();
+        }
+      });
+    }).observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'disabled'] });
+    window.addEventListener('resize', () => restart());
+    restart();
+  }
+
+  // Memory match: face-down cards; once all pairs are found, the restart button
+  const memory = document.getElementById('memory');
+  if (memory) addFinger(memory, () => {
+    const cards = [...memory.querySelectorAll('.mm-card:not(.flipped):not(.matched)')];
+    return cards.length ? cards : [document.getElementById('mmRestart')].filter(Boolean);
+  });
+
+  // Quiz: answers still open to pick (it visits them in order, so it never gives one away);
+  // on the score screen, the Play again button
+  const quiz = document.getElementById('quiz');
+  if (quiz) addFinger(quiz, () => {
+    const open = [...quiz.querySelectorAll('.qz-option:not(:disabled)')];
+    return open.length ? open : [...quiz.querySelectorAll('.qz-restart')];
+  });
+})();
+
 /* ---------- Drifting forest background ---------- */
 (() => {
+  // Same address as --forest-bg at the bottom of style.css
+  const BG_URL = 'https://images.unsplash.com/photo-1511207538754-e8555f2bc187?fm=jpg&q=85&w=2400&auto=format';
+  // The trees fill roughly the top 60% of this photo; the rest is near-black.
+  // The page never scrolls past this point, so the forest never runs out.
+  const TREES_END = 0.6;
+
   const root = document.documentElement;
   const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let travel = 0, ticking = false;
+  let ratio = 0.5625;          // width / height, replaced once the photo loads
+  let boxH = 0, travel = 0, ticking = false;
 
-  // How far the photo can slide = its height minus the screen height
+  const img = new Image();
+  img.onload = () => { ratio = img.naturalWidth / img.naturalHeight; size(); };
+  img.src = BG_URL;
+
   function size() {
     const w = window.innerWidth, h = window.innerHeight;
-    const photoH = Math.max(w * 1726 / 1600, h * 1.25);
-    travel = still ? 0 : Math.max(0, photoH - h);
+    // tall enough that the tree part always covers the screen
+    boxH = Math.max(w / ratio, h / TREES_END);
+    travel = still ? 0 : Math.max(0, boxH * TREES_END - h);
+    root.style.setProperty('--bg-h', `${Math.ceil(boxH)}px`);
     move();
   }
-  // Top of the page shows the top of the photo, bottom of the page shows the bottom
+  // Top of the page = top of the forest, bottom of the page = where the trees end
   function move() {
     ticking = false;
     const max = Math.max(1, root.scrollHeight - window.innerHeight);
@@ -466,4 +681,104 @@ refresh();
   window.addEventListener('resize', size);
   window.addEventListener('load', size);
   size();
+})();
+
+/* ---------- Shared leaderboard (Supabase) ---------- */
+(() => {
+  const SUPABASE_URL = 'https://bapatlwmmxngqxrvssqz.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_nu0ZulghbbiXvmm7BmA1wg_Y9Qq-96R'; // public key, safe in a website
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmtTime = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const nth = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
+  const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+  /* --- who is playing --- */
+  let player = '';
+  try { player = localStorage.getItem('forks-player') || ''; } catch (e) {}
+  const pill = $('whoPill');
+  function showPill() { pill.hidden = !player; pill.textContent = `Playing as ${player} · change`; }
+  function askName() { $('nameInput').value = player; $('nameDlg').hidden = false; setTimeout(() => $('nameInput').focus(), 50); }
+  $('nameForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const v = $('nameInput').value.trim().slice(0, 30);
+    if (!v) return;
+    player = v;
+    try { localStorage.setItem('forks-player', player); } catch (err) {}
+    $('nameDlg').hidden = true; showPill(); load();
+  });
+  pill.addEventListener('click', askName);
+  // Ask once, when someone first enters the forest
+  document.querySelector('.enter').addEventListener('click', () => { if (!player) askName(); });
+  showPill();
+
+  /* --- leaderboard --- */
+  let tab = 'total', rows = [];
+  document.querySelectorAll('.lb-tab').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.lb-tab').forEach(x => x.classList.toggle('on', x === b));
+    tab = b.dataset.game; render();
+  }));
+
+  // Best try per player for one game, worked out in the browser
+  function bestPerPlayer(game) {
+    const best = {};
+    rows.filter(r => r.game === game).forEach(r => {
+      const b = best[r.player];
+      if (!b || r.points > b.points || (r.points === b.points && r.seconds < b.seconds)) best[r.player] = r;
+    });
+    return Object.values(best).sort((a, b) => b.points - a.points || a.seconds - b.seconds);
+  }
+  let totals = [];
+  function render() {
+    const list = tab === 'total'
+      ? totals.map(t => ({ player: t.player, points: t.total_points, sub: `${t.games} game${t.games > 1 ? 's' : ''}` }))
+      : bestPerPlayer(tab).map(r => ({ player: r.player, points: r.points, sub: fmtTime(r.seconds) }));
+    $('lbList').innerHTML = list.length
+      ? list.map((r, k) => `<li class="lb-row${r.player === player ? ' me' : ''}"><span class="lb-rank">${k + 1}</span><span class="lb-name">${esc(r.player)} <small>${r.sub}</small></span><span class="lb-pts">${Number(r.points).toLocaleString('en')}</span></li>`).join('')
+      : '<li class="lb-empty">No scores yet. Finish a game to get on the board.</li>';
+  }
+  async function load() {
+    if (!db) { $('lbLive').textContent = 'Leaderboard offline'; return; }
+    const [a, b] = await Promise.all([
+      db.from('leaderboard').select('*'),          // the SQL view: best per game, added up
+      db.from('scores').select('player, game, points, seconds')
+    ]);
+    if (a.error || b.error) { $('lbLive').textContent = 'Could not reach the leaderboard'; return; }
+    totals = a.data; rows = b.data;
+    $('lbLive').textContent = '● Live';
+    render();
+  }
+  function placeOf(name) { const k = totals.findIndex(t => t.player === name); return k < 0 ? '' : `You're ${nth(k + 1)} of ${totals.length} overall.`; }
+
+  /* --- a game finished: show the score, save it --- */
+  document.addEventListener('forks:score', async e => {
+    const d = e.detail;
+    $('sdTitle').textContent = d.title;
+    $('sdPoints').textContent = Number(d.points).toLocaleString('en');
+    $('sdRows').innerHTML = d.rows.map(([k, v]) => `<p><span>${esc(k)}</span><b>${esc(v)}</b></p>`).join('');
+    $('sdPlace').textContent = 'Saving your score…';
+    $('scoreDlg').hidden = false;
+    if (!player) { $('sdPlace').textContent = 'Add your name to save this score.'; askName(); return; }
+    if (!db) { $('sdPlace').textContent = 'Leaderboard offline, score not saved.'; return; }
+    const { error } = await db.from('scores').insert({
+      player, game: d.game,
+      points: Math.max(0, Math.min(5000, Math.round(d.points))),
+      seconds: Math.max(0, Math.min(7200, Math.round(d.seconds)))
+    });
+    if (error) { $('sdPlace').textContent = 'Could not save the score. Check the connection.'; return; }
+    await load();
+    $('sdPlace').textContent = placeOf(player) || 'Saved.';
+  });
+  $('sdClose').addEventListener('click', () => { $('scoreDlg').hidden = true; });
+  $('sdBoard').addEventListener('click', () => { $('scoreDlg').hidden = true; $('leaderboard').scrollIntoView({ behavior: 'smooth' }); });
+
+  /* --- live updates: every phone refreshes when anyone adds a score --- */
+  if (db) {
+    db.channel('scores-live')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'scores' }, load)
+      .subscribe();
+    setInterval(load, 20000); // safety net if live updates drop
+  }
+  load();
 })();
