@@ -40,7 +40,6 @@
           <button type="button" id="check">Check puzzle</button>
           <button type="button" id="revealWord">Reveal word</button>
           <button type="button" id="clear">Clear puzzle</button>
-          <button type="button" id="print">Print blank copy</button>
         </div>
         <p class="status" id="status" aria-live="polite"></p>
       </div>
@@ -77,9 +76,55 @@
       <p class="lede">Twelve lines and internet-famous moments. Read each one out loud, let the room argue, then pick who it belongs to.</p>
     </div>
     <div class="quiz-card" id="quizCard" aria-live="polite"></div>
+  </section>
+
+  <!-- Leaderboard -->
+  <section class="board-sec" id="leaderboard">
+    <div class="intro">
+      <h1>Forks <em>champion</em></h1>
+      <p class="lede">Every finished game adds to your score. Your best try in each game counts, and ties go to whoever was faster.</p>
+    </div>
+    <div class="quiz-card lb-card">
+      <p class="lb-live" id="lbLive">Connecting…</p>
+      <div class="lb-tabs" role="tablist">
+        <button type="button" class="lb-tab on" data-game="total">Total</button>
+        <button type="button" class="lb-tab" data-game="quiz">Quiz</button>
+        <button type="button" class="lb-tab" data-game="memory">Memory</button>
+        <button type="button" class="lb-tab" data-game="crossword">Crossword</button>
+      </div>
+      <ol class="lb-list" id="lbList"></ol>
+    </div>
     <a class="back" href="#top">Back to the forest</a>
   </section>
 
+  <!-- "Playing as" pill -->
+  <button type="button" class="who" id="whoPill" hidden></button>
+
+  <!-- Name dialog -->
+  <div class="dlg" id="nameDlg" hidden>
+    <form class="quiz-card dlg-box" id="nameForm">
+      <h2>Who's playing?</h2>
+      <p class="lede">Your name goes on the shared leaderboard.</p>
+      <input class="dlg-input" id="nameInput" maxlength="30" autocomplete="nickname" placeholder="Your name" required>
+      <button type="submit" class="dlg-btn">Enter the forest</button>
+    </form>
+  </div>
+
+  <!-- Score dialog after each game -->
+  <div class="dlg" id="scoreDlg" hidden>
+    <div class="quiz-card dlg-box">
+      <h2 id="sdTitle">Game done</h2>
+      <p class="sd-points"><span id="sdPoints">0</span><small>points</small></p>
+      <div class="sd-rows" id="sdRows"></div>
+      <p class="sd-place" id="sdPlace">Saving your score…</p>
+      <div class="sd-actions">
+        <button type="button" class="dlg-btn" id="sdBoard">See the leaderboard</button>
+        <button type="button" class="dlg-btn ghost" id="sdClose">Keep playing</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.10/dist/umd/supabase.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
