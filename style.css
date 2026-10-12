@@ -1576,6 +1576,14 @@ body::before {
 .sd-actions { display: grid; gap: .4rem; }
 
 /* =====================================================
+   No name yet: only the landing page is shown
+   ===================================================== */
+body.need-name .crossword,
+body.need-name .memory,
+body.need-name .quiz,
+body.need-name .board-sec { display: none; }
+
+/* =====================================================
    Images, loaded from their original sources
    ===================================================== */
 :root {
