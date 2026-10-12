@@ -720,7 +720,10 @@ refresh();
   document.querySelector('.enter').addEventListener('click', e => {
     if (!player) { e.preventDefault(); askName(); }
   });
-  if (player) unlock();
+  // Lock or unlock straight away, even if the class is missing from the <body> tag
+  if (player) unlock(); else document.body.classList.add('need-name');
+  // Testing tip: add ?newguest to the address to forget the saved name on this device
+  if (/[?&]newguest\b/.test(location.search)) { try { localStorage.removeItem('forks-player'); } catch (e) {} player = ''; document.body.classList.add('need-name'); }
   showPill();
 
   /* --- leaderboard --- */
