@@ -700,6 +700,13 @@ refresh();
   const pill = $('whoPill');
   function showPill() { pill.hidden = !player; pill.textContent = `Playing as ${player} · change`; }
   function askName() { $('nameInput').value = player; $('nameDlg').hidden = false; setTimeout(() => $('nameInput').focus(), 50); }
+  // The games stay hidden until there's a name, so nobody can play without "logging in"
+  function unlock() {
+    const wasLocked = document.body.classList.contains('need-name');
+    document.body.classList.remove('need-name');
+    window.dispatchEvent(new Event('resize'));   // let the floating fingers find their spots
+    return wasLocked;
+  }
   $('nameForm').addEventListener('submit', e => {
     e.preventDefault();
     const v = $('nameInput').value.trim().slice(0, 30);
@@ -707,10 +714,13 @@ refresh();
     player = v;
     try { localStorage.setItem('forks-player', player); } catch (err) {}
     $('nameDlg').hidden = true; showPill(); load();
+    if (unlock()) setTimeout(() => $('crossword').scrollIntoView({ behavior: 'smooth' }), 60);
   });
   pill.addEventListener('click', askName);
-  // Ask once, when someone first enters the forest
-  document.querySelector('.enter').addEventListener('click', () => { if (!player) askName(); });
+  document.querySelector('.enter').addEventListener('click', e => {
+    if (!player) { e.preventDefault(); askName(); }
+  });
+  if (player) unlock();
   showPill();
 
   /* --- leaderboard --- */
